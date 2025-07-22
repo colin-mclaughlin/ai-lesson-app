@@ -18,4 +18,34 @@ def build_grammar_lesson_prompt(rule_title):
         "5. **Activity Section C** (optional but encouraged)\n"
         "   - Bonus creative task like matching sentences to pictures, rewriting text, or another imaginative grammar-based activity.\n\n"
         "Make the worksheet engaging, clear, and appropriate for Grade 4. Do not copy from any real worksheets or books. Generate all content originally, but keep the structure, length, and style similar to the Evan-Moor Grade 4 Grammar & Punctuation worksheets."
-    ) 
+    )
+
+
+def build_multi_rule_grammar_lesson_prompt(rule_titles):
+    intro = (
+        "You are an expert elementary ELA teacher. Create a reproducible worksheet for Grade 4 students covering the following grammar rules. "
+        "For each rule, generate a separate worksheet section using the structure and style described below. Do NOT copy any real content; generate everything originally.\n\n"
+        "Worksheet Structure for Each Rule:\n"
+        "1. **Rule Heading**\n"
+        "   - Begin with a bold rule title (e.g., 'Rule 1: Kinds of Sentences')\n\n"
+        "2. **Rule Explanation**\n"
+        "   - Write a short, student-friendly explanation of the rule.\n"
+        "   - Include 3–5 clearly formatted examples of the rule in action.\n"
+        "   - Use bold to highlight key grammar terms (e.g., **declarative**, **interrogative**).\n\n"
+        "3. **Activity Section A**\n"
+        "   - Include 6–8 sentence fragments or items where students must apply the rule (e.g., punctuate, identify sentence type, etc.).\n"
+        "   - Add blanks or lines for student writing.\n"
+        "   - Include simple instructions at the top.\n\n"
+        "4. **Activity Section B**\n"
+        "   - Have students write 1 of each kind of sentence (or whatever applies to the rule).\n"
+        "   - Add lines and labels for each type (e.g., statement, question, command, exclamation).\n\n"
+        "5. **Activity Section C** (optional but encouraged)\n"
+        "   - Bonus creative task like matching sentences to pictures, rewriting text, or another imaginative grammar-based activity.\n\n"
+        "Make the worksheet engaging, clear, and appropriate for Grade 4. Do not copy from any real worksheets or books. Generate all content originally, but keep the structure, length, and style similar to the Evan-Moor Grade 4 Grammar & Punctuation worksheets.\n\n"
+    )
+    sections = []
+    for idx, rule in enumerate(rule_titles, 1):
+        sections.append(f"## Rule {idx}: {rule}\n")
+        sections.append(build_grammar_lesson_prompt(rule))
+        sections.append("\n\n")
+    return intro + "\n".join(sections) 

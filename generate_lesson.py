@@ -1,20 +1,23 @@
 import sys
-from prompt_builder import build_grammar_lesson_prompt
+from prompt_builder import build_grammar_lesson_prompt, build_multi_rule_grammar_lesson_prompt
 from openai_client import generate_lesson
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python generate_lesson.py \"your grammar topic or prompt here\"")
+        print("Usage: python generate_lesson.py \"grammar topic 1\" \"grammar topic 2\" ...")
         return
 
-    user_topic = " ".join(sys.argv[1:])
-    print(f"Building lesson on: {user_topic}")
-    prompt = build_grammar_lesson_prompt(user_topic)
+    rule_titles = sys.argv[1:]
+    print(f"Building lessons for: {', '.join(rule_titles)}")
+    if len(rule_titles) == 1:
+        prompt = build_grammar_lesson_prompt(rule_titles[0])
+    else:
+        prompt = build_multi_rule_grammar_lesson_prompt(rule_titles)
 
-    print("Generating lesson from OpenAI...")
+    print("Generating lesson(s) from OpenAI...")
     lesson = generate_lesson(prompt)
 
-    print("\nGenerated Lesson:\n")
+    print("\nGenerated Lesson(s):\n")
     print(lesson)
 
 if __name__ == "__main__":
