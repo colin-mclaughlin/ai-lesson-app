@@ -20,5 +20,11 @@ def main():
     print("\nGenerated Lesson(s):\n")
     print(lesson)
 
+    # Write output to file
+    output_filename = "lesson_output.txt"
+    with open(output_filename, "w", encoding="utf-8") as f:
+        f.write(lesson)
+    print(f"\nLesson(s) saved to {output_filename}")
+
 if __name__ == "__main__":
     main() 
