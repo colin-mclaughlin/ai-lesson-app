@@ -1,0 +1,21 @@
+def build_grammar_lesson_prompt(rule_title):
+    return (
+        f"You are an expert elementary ELA teacher. Create a reproducible worksheet for Grade 4 students based on the following grammar rule: \"{rule_title}\".\n\n"
+        "The worksheet should follow this structure (do NOT copy any real content, generate everything originally):\n\n"
+        "1. **Rule Heading**\n"
+        "   - Begin with a bold rule title (e.g., 'Rule 1: Kinds of Sentences')\n\n"
+        "2. **Rule Explanation**\n"
+        "   - Write a short, student-friendly explanation of the rule.\n"
+        "   - Include 3–5 clearly formatted examples of the rule in action.\n"
+        "   - Use bold to highlight key grammar terms (e.g., **declarative**, **interrogative**).\n\n"
+        "3. **Activity Section A**\n"
+        "   - Include 6–8 sentence fragments or items where students must apply the rule (e.g., punctuate, identify sentence type, etc.).\n"
+        "   - Add blanks or lines for student writing.\n"
+        "   - Include simple instructions at the top.\n\n"
+        "4. **Activity Section B**\n"
+        "   - Have students write 1 of each kind of sentence (or whatever applies to the rule).\n"
+        "   - Add lines and labels for each type (e.g., statement, question, command, exclamation).\n\n"
+        "5. **Activity Section C** (optional but encouraged)\n"
+        "   - Bonus creative task like matching sentences to pictures, rewriting text, or another imaginative grammar-based activity.\n\n"
+        "Make the worksheet engaging, clear, and appropriate for Grade 4. Do not copy from any real worksheets or books. Generate all content originally, but keep the structure, length, and style similar to the Evan-Moor Grade 4 Grammar & Punctuation worksheets."
+    ) 
