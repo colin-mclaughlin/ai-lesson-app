@@ -4,6 +4,7 @@ import json
 import os
 from prompt_builder import build_grammar_lesson_prompt, build_multi_rule_grammar_lesson_prompt
 from openai_client import generate_lesson
+from database import LessonDatabase
 
 def load_grade_topics():
     """Load curriculum-aligned topics for each grade from grade_topics.json"""
@@ -68,18 +69,110 @@ def get_user_topic_selection(suggested_topics):
         else:
             print("Invalid choice. Please enter 1, 2, or 3.")
 
+def prompt_save_lesson(db: LessonDatabase, topics: list, grade_level: int, lesson: str, age: int = None) -> bool:
+    """Prompt user to save the lesson and handle the save operation"""
+    while True:
+        save_choice = input("\nDo you want to save this lesson? [Y/n]: ").strip().lower()
+        
+        if save_choice in ['', 'y', 'yes']:
+            try:
+                lesson_id = db.save_lesson(topics, grade_level, lesson, age)
+                print(f"✅ Lesson saved successfully with ID: {lesson_id}")
+                return True
+            except Exception as e:
+                print(f"❌ Error saving lesson: {e}")
+                return False
+        elif save_choice in ['n', 'no']:
+            print("Lesson not saved.")
+            return False
+        else:
+            print("Please enter 'y' for yes or 'n' for no.")
+
+def list_lessons(db: LessonDatabase):
+    """List all saved lessons with summary information"""
+    lessons = db.list_lessons()
+    
+    if not lessons:
+        print("No lessons found in the database.")
+        return
+    
+    print(f"\n📚 Found {len(lessons)} saved lesson(s):")
+    print("=" * 80)
+    print(f"{'ID':<4} {'Grade':<6} {'Age':<4} {'Date Generated':<20} {'Topics'}")
+    print("=" * 80)
+    
+    for lesson in lessons:
+        topics_str = ", ".join(lesson['topics'][:3])  # Show first 3 topics
+        if len(lesson['topics']) > 3:
+            topics_str += "..."
+        
+        age_str = str(lesson['age']) if lesson['age'] else "N/A"
+        date_str = lesson['date_generated'][:19]  # Truncate to remove microseconds
+        
+        print(f"{lesson['id']:<4} {lesson['grade']:<6} {age_str:<4} {date_str:<20} {topics_str}")
+
+def view_lesson(db: LessonDatabase, lesson_id: int):
+    """Display the full content of a saved lesson"""
+    lesson = db.get_lesson(lesson_id)
+    
+    if not lesson:
+        print(f"❌ Lesson with ID {lesson_id} not found.")
+        return
+    
+    print(f"\n📖 Lesson #{lesson_id}")
+    print("=" * 80)
+    print(f"Topics: {', '.join(lesson['topics'])}")
+    print(f"Grade: {lesson['grade']}")
+    if lesson['age']:
+        print(f"Age: {lesson['age']}")
+    print(f"Generated: {lesson['date_generated']}")
+    if lesson['tags']:
+        print(f"Tags: {', '.join(lesson['tags'])}")
+    print("=" * 80)
+    print("\nContent:")
+    print("-" * 40)
+    print(lesson['lesson_text'])
+
+def search_lessons(db: LessonDatabase, keyword: str):
+    """Search lessons by keyword"""
+    lessons = db.search_lessons(keyword)
+    
+    if not lessons:
+        print(f"No lessons found matching '{keyword}'.")
+        return
+    
+    print(f"\n🔍 Found {len(lessons)} lesson(s) matching '{keyword}':")
+    print("=" * 80)
+    print(f"{'ID':<4} {'Grade':<6} {'Age':<4} {'Date Generated':<20} {'Topics'}")
+    print("=" * 80)
+    
+    for lesson in lessons:
+        topics_str = ", ".join(lesson['topics'][:3])  # Show first 3 topics
+        if len(lesson['topics']) > 3:
+            topics_str += "..."
+        
+        age_str = str(lesson['age']) if lesson['age'] else "N/A"
+        date_str = lesson['date_generated'][:19]  # Truncate to remove microseconds
+        
+        print(f"{lesson['id']:<4} {lesson['grade']:<6} {age_str:<4} {date_str:<20} {topics_str}")
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate customizable grammar lessons using AI with curriculum-aligned topic suggestions",
+        description="Generate customizable grammar lessons using AI with curriculum-aligned topic suggestions and SQLite storage",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Generate lessons
   python generate_lesson.py "Nouns" "Verbs"
   python generate_lesson.py "Kinds of Sentences" --grade 3 --section-a-questions 8
   python generate_lesson.py "Adjectives" "Adverbs" --section-b-questions 4 --section-c-questions 3
   python generate_lesson.py "Prepositions" --age 10 --section-d-questions 5
   python generate_lesson.py --grade 4  # Interactive topic selection with curriculum suggestions
-  python generate_lesson.py --grade 2  # View and select from Grade 2 curriculum topics
+
+  # Database operations
+  python generate_lesson.py --list  # List all saved lessons
+  python generate_lesson.py --view 5  # View lesson with ID 5
+  python generate_lesson.py --search "nouns"  # Search lessons containing "nouns"
 
 Note: When specifying only a grade without topics, the app will display curriculum-aligned 
 suggestions from grade_topics.json and allow interactive selection. You can also enter 
@@ -139,7 +232,44 @@ custom topics or select from the suggestions by number.
         help="Number of questions for Activity D: Higher-order Thinking (default: 6)"
     )
     
+    # Database operations
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List all saved lessons with summary information"
+    )
+    
+    parser.add_argument(
+        "--view",
+        type=int,
+        metavar="LESSON_ID",
+        help="View the full content of a saved lesson by its ID"
+    )
+    
+    parser.add_argument(
+        "--search",
+        type=str,
+        metavar="KEYWORD",
+        help="Search lessons by keyword in topics, content, or tags"
+    )
+    
     args = parser.parse_args()
+    
+    # Initialize database
+    db = LessonDatabase()
+    
+    # Handle database operations first
+    if args.list:
+        list_lessons(db)
+        return
+    
+    if args.view:
+        view_lesson(db, args.view)
+        return
+    
+    if args.search:
+        search_lessons(db, args.search)
+        return
     
     # Determine grade level (age takes precedence)
     if args.age:
@@ -206,6 +336,9 @@ custom topics or select from the suggestions by number.
     with open(output_filename, "w", encoding="utf-8") as f:
         f.write(lesson)
     print(f"\nLesson(s) saved to {output_filename}")
+    
+    # Prompt user to save to database
+    prompt_save_lesson(db, topics, grade_level, lesson, args.age)
 
 if __name__ == "__main__":
     main() 

@@ -1,6 +1,6 @@
 # Coding Cat - AI Grammar Lesson Generator
 
-An AI-powered tool for generating customizable grammar lessons with curriculum-aligned topic suggestions.
+An AI-powered tool for generating customizable grammar lessons with curriculum-aligned topic suggestions and SQLite database storage.
 
 ## Features
 
@@ -10,6 +10,8 @@ An AI-powered tool for generating customizable grammar lessons with curriculum-a
 - **Multi-Topic Support**: Generate lessons covering multiple grammar concepts
 - **Grade-Level Customization**: Tailored content for specific grade levels (1-8)
 - **Age-Based Override**: Use age instead of grade for more flexible targeting
+- **SQLite Database Storage**: Save, retrieve, and manage generated lessons
+- **Lesson Management**: List, view, and search saved lessons
 
 ## Installation
 
@@ -60,6 +62,59 @@ python generate_lesson.py "Adjectives" --age 10 --section-d-questions 5
 python generate_lesson.py "Prepositions" "Conjunctions" --grade 5 --section-c-questions 3
 ```
 
+### Database Operations
+
+#### Saving Lessons
+After generating a lesson, you'll be prompted to save it to the database:
+```
+Do you want to save this lesson? [Y/n]:
+```
+- Press `Y` or `Enter` to save the lesson
+- Press `N` to skip saving
+
+#### Listing Saved Lessons
+View all saved lessons with summary information:
+```bash
+python generate_lesson.py --list
+```
+
+Output example:
+```
+📚 Found 3 saved lesson(s):
+================================================================================
+ID   Grade  Age  Date Generated        Topics
+================================================================================
+1    4      N/A  2024-01-15 14:30:22   Nouns, Verbs, Adjectives
+2    3      8    2024-01-15 13:45:10   Kinds of Sentences
+3    5      N/A  2024-01-15 12:20:05   Prepositions, Conjunctions
+```
+
+#### Viewing a Specific Lesson
+Display the full content of a saved lesson by its ID:
+```bash
+python generate_lesson.py --view 5
+```
+
+#### Searching Lessons
+Search for lessons containing specific keywords in topics, content, or tags:
+```bash
+python generate_lesson.py --search "nouns"
+python generate_lesson.py --search "grade 3"
+python generate_lesson.py --search "sentences"
+```
+
+## Database Schema
+
+The SQLite database (`lessons.db`) contains a `lessons` table with the following columns:
+
+- **id**: Auto-incrementing primary key
+- **topics**: JSON array of lesson topics
+- **grade**: Integer grade level (1-8)
+- **age**: Integer age level (nullable, 5-14)
+- **date_generated**: Timestamp when the lesson was created
+- **lesson_text**: Full lesson content
+- **tags**: JSON array of optional tags (nullable)
+
 ## Curriculum-Aligned Topics
 
 The app includes a `grade_topics.json` file with curriculum-aligned suggestions for grades 1-6:
@@ -99,17 +154,35 @@ ai-lesson-app/
 ├── generate_lesson.py          # Main CLI application
 ├── prompt_builder.py           # Lesson prompt generation
 ├── openai_client.py           # OpenAI API integration
+├── database.py                # SQLite database operations
 ├── grade_topics.json          # Curriculum-aligned topic suggestions
 ├── test_curriculum_suggestions.py  # Test suite
 ├── requirements.txt           # Python dependencies
+├── lessons.db                 # SQLite database (created automatically)
 └── README.md                 # This file
 ```
 
 ## Examples
 
-### View Grade 2 Curriculum Topics
+### Generate and Save a Lesson
 ```bash
-python generate_lesson.py --grade 2
+python generate_lesson.py "Nouns" "Verbs" --grade 3
+# After generation, you'll be prompted to save the lesson
+```
+
+### View All Saved Lessons
+```bash
+python generate_lesson.py --list
+```
+
+### View a Specific Lesson
+```bash
+python generate_lesson.py --view 2
+```
+
+### Search for Lessons
+```bash
+python generate_lesson.py --search "adjectives"
 ```
 
 ### Generate Multi-Topic Lesson
@@ -125,6 +198,8 @@ python generate_lesson.py "Kinds of Sentences" --grade 4 --section-a-questions 1
 ## Notes
 
 - Lessons are saved to `lesson_output.txt` by default
+- Saved lessons are stored in `lessons.db` (SQLite database)
 - The app gracefully handles missing `grade_topics.json` files
 - All content is generated originally (no copying from existing materials)
 - Lessons are tailored to the specified grade level and age appropriateness
+- Database operations are atomic and include error handling
