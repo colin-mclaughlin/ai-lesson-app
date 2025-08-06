@@ -14,3 +14,6 @@ lesson_output.txt
 lessons.db
 
 /frontend/node_modules
+
+*.pyo
+*.pyd
