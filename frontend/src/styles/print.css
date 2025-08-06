@@ -1,0 +1,159 @@
+/* Print-specific styles for lesson worksheets */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Times New Roman', serif;
+    font-size: 12pt;
+    line-height: 1.6;
+    color: black;
+    background: white;
+  }
+
+  /* Hide UI elements in print */
+  .no-print,
+  .no-print * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Print container styles */
+  .print-content {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    background: white;
+    font-family: 'Times New Roman', serif;
+    font-size: 12pt;
+    line-height: 1.6;
+    color: black;
+  }
+
+  /* Title styling for print */
+  .print-title {
+    font-size: 18pt;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 20pt;
+    border-bottom: 2pt solid black;
+    padding-bottom: 10pt;
+    page-break-after: avoid;
+  }
+
+  /* Lesson content styling */
+  .print-lesson-content {
+    font-size: 12pt;
+    line-height: 1.8;
+    color: black;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  /* Section headers */
+  .print-lesson-content h1,
+  .print-lesson-content h2,
+  .print-lesson-content h3 {
+    font-weight: bold;
+    margin-top: 16pt;
+    margin-bottom: 8pt;
+    page-break-after: avoid;
+  }
+
+  .print-lesson-content h1 {
+    font-size: 16pt;
+  }
+
+  .print-lesson-content h2 {
+    font-size: 14pt;
+  }
+
+  .print-lesson-content h3 {
+    font-size: 13pt;
+  }
+
+  /* Activity sections */
+  .print-lesson-content strong {
+    font-weight: bold;
+  }
+
+  /* Paragraph spacing */
+  .print-lesson-content p {
+    margin-bottom: 8pt;
+    page-break-inside: avoid;
+  }
+
+  /* Lists */
+  .print-lesson-content ul,
+  .print-lesson-content ol {
+    margin: 8pt 0;
+    padding-left: 20pt;
+  }
+
+  .print-lesson-content li {
+    margin-bottom: 4pt;
+    page-break-inside: avoid;
+  }
+
+  /* Page breaks */
+  .section-break {
+    page-break-before: auto;
+    margin-top: 20pt;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  /* Table styles if any */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8pt 0;
+  }
+
+  th, td {
+    border: 1pt solid black;
+    padding: 4pt;
+    text-align: left;
+  }
+
+  th {
+    font-weight: bold;
+    background-color: #f0f0f0;
+  }
+
+  /* Ensure proper spacing for worksheet elements */
+  .worksheet-section {
+    margin: 16pt 0;
+    page-break-inside: avoid;
+  }
+
+  .question-item {
+    margin: 8pt 0;
+    page-break-inside: avoid;
+  }
+
+  /* Lines for student answers */
+  .answer-line {
+    border-bottom: 1pt solid black;
+    display: inline-block;
+    min-width: 100pt;
+    margin: 0 4pt;
+  }
+
+  .answer-space {
+    border-bottom: 1pt solid black;
+    height: 20pt;
+    margin: 4pt 0;
+  }
+}
