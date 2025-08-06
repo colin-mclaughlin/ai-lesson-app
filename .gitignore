@@ -12,3 +12,5 @@ __pycache__/
 lesson_output.txt
 
 lessons.db
+
+/frontend/node_modules
