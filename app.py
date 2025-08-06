@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Union
+from typing import Union, List, Optional
 import logging
 
 # Import our existing lesson generation functions
@@ -35,6 +35,18 @@ class LessonRequest(BaseModel):
 class LessonResponse(BaseModel):
     lessonText: str
     success: bool = True
+
+# Lesson history models
+class LessonSummary(BaseModel):
+    id: int
+    topics: List[str]
+    grade: int
+    age: Optional[int]
+    date_generated: str
+
+class LessonsListResponse(BaseModel):
+    lessons: List[LessonSummary]
+    total: int
 
 # Initialize database
 db = LessonDatabase()
@@ -111,6 +123,59 @@ async def generate_lesson_endpoint(request: LessonRequest):
     except Exception as e:
         logger.error(f"Error generating lesson: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate lesson: {str(e)}")
+
+@app.get("/api/lessons", response_model=LessonsListResponse)
+async def get_lessons_list():
+    """
+    Get all lessons from the database, ordered by date descending.
+    Returns a list of lesson summaries with basic information.
+    """
+    try:
+        logger.info("Fetching all lessons from database")
+        lessons = db.list_lessons()
+        
+        # Convert to response format
+        lesson_summaries = [
+            LessonSummary(
+                id=lesson['id'],
+                topics=lesson['topics'],
+                grade=lesson['grade'],
+                age=lesson['age'],
+                date_generated=lesson['date_generated']
+            )
+            for lesson in lessons
+        ]
+        
+        return LessonsListResponse(
+            lessons=lesson_summaries,
+            total=len(lesson_summaries)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error fetching lessons: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch lessons: {str(e)}")
+
+@app.get("/api/lessons/{lesson_id}")
+async def get_lesson_by_id(lesson_id: int):
+    """
+    Get a specific lesson by ID, including full lesson content.
+    Returns 404 if lesson not found.
+    """
+    try:
+        logger.info(f"Fetching lesson with ID: {lesson_id}")
+        lesson = db.get_lesson(lesson_id)
+        
+        if not lesson:
+            raise HTTPException(status_code=404, detail=f"Lesson with ID {lesson_id} not found")
+        
+        return lesson
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching lesson {lesson_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch lesson: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
