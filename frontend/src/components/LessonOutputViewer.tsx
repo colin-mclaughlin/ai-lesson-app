@@ -5,9 +5,11 @@ import '../styles/print.css';
 interface LessonOutputViewerProps {
   lessonText: string;
   lessonId?: number;
+  grade?: string;
+  topic?: string;
 }
 
-const LessonOutputViewer: React.FC<LessonOutputViewerProps> = ({ lessonText, lessonId }) => {
+const LessonOutputViewer: React.FC<LessonOutputViewerProps> = ({ lessonText, lessonId, grade, topic }) => {
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = useReactToPrint({
@@ -164,9 +166,24 @@ const LessonOutputViewer: React.FC<LessonOutputViewerProps> = ({ lessonText, les
       </div>
       
       <div ref={printRef} className="print-content">
+        {/* Print-only header */}
+        {lessonText && grade && topic && (
+          <div className="print-header">
+            <div className="company-name">Coding Cat Club</div>
+            <div className="grade-topic">Grade {grade} — Topic: {topic}</div>
+            <div className="name-date">Name: _________   Date: _________</div>
+          </div>
+        )}
+        
         <div className="prose max-w-none">
           {lessonText ? (
             <>
+              {/* Screen-only inline topic line */}
+              {grade && topic && (
+                <div className="inline-grammar-topic text-sm text-gray-600 mb-4">
+                  Grade {grade} — Topic: {topic}
+                </div>
+              )}
               <div className="print-title">
                 Lesson Worksheet
               </div>

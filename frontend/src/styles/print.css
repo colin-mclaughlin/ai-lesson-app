@@ -1,4 +1,37 @@
 /* Print-specific styles for lesson worksheets */
+/* Hide print header on screen by default */
+.print-header {
+  display: none;
+}
+
+@media print {
+  .print-header { 
+    display: block; 
+    text-align: center; 
+    margin-bottom: 16px; 
+  }
+  .print-header .company-name {
+    font-size: 16pt;
+    font-weight: bold;
+    margin-bottom: 8pt;
+  }
+  .print-header .grade-topic {
+    font-size: 12pt;
+    margin-bottom: 8pt;
+  }
+  .print-header .name-date {
+    font-size: 11pt;
+    margin-bottom: 16pt;
+  }
+  .screen-only { 
+    display: none !important; 
+  }
+  /* Hide the inline "Grammar — Topic" text in print */
+  .inline-grammar-topic { 
+    display: none !important; 
+  }
+}
+
 @media print {
   * {
     -webkit-print-color-adjust: exact !important;

@@ -62,7 +62,12 @@ const LessonGeneratorForm: React.FC<LessonGeneratorFormProps> = ({ onGenerate, o
 
       const data = await response.json();
       console.log('Generated lesson with ID:', data.lessonId); // Debug log
-      onGenerate(data);
+      // Pass the lesson data along with the form data for the header
+      onGenerate({
+        ...data,
+        grade: formData.grade,
+        topic: topicString
+      });
     } catch (error) {
       console.error('Error generating lesson:', error);
       let errorMessage = 'An unexpected error occurred';

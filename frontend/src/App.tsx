@@ -9,6 +9,8 @@ interface LessonData {
   regenerated?: boolean;
   warnings?: string[];
   lessonId?: number;
+  grade?: string;
+  topic?: string;
 }
 
 function App() {
@@ -86,6 +88,8 @@ function App() {
               <LessonOutputViewer 
                 lessonText={lessonData.lessonText} 
                 lessonId={lessonData.lessonId}
+                grade={lessonData.grade}
+                topic={lessonData.topic}
               />
               {/* Content adjustment banner */}
               {(lessonData.regenerated || (lessonData.warnings && lessonData.warnings.length > 0)) && (
