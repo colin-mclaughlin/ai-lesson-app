@@ -4,9 +4,10 @@ import '../styles/print.css';
 
 interface LessonOutputViewerProps {
   lessonText: string;
+  lessonId?: number;
 }
 
-const LessonOutputViewer: React.FC<LessonOutputViewerProps> = ({ lessonText }) => {
+const LessonOutputViewer: React.FC<LessonOutputViewerProps> = ({ lessonText, lessonId }) => {
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = useReactToPrint({
@@ -49,6 +50,41 @@ const LessonOutputViewer: React.FC<LessonOutputViewerProps> = ({ lessonText }) =
       }
     `,
   });
+
+  const handleDownloadDocx = async () => {
+    if (!lessonId) {
+      alert('No lesson ID available for download');
+      return;
+    }
+
+    try {
+      // Download the DOCX using the lesson ID
+      const docxResponse = await fetch(`http://localhost:8000/api/lessons/${lessonId}/docx`, {
+        method: 'GET',
+      });
+
+      if (!docxResponse.ok) {
+        if (docxResponse.status === 404) {
+          throw new Error('Lesson not found. It may have been deleted.');
+        }
+        throw new Error('Failed to download DOCX');
+      }
+
+      // Create blob and download
+      const blob = await docxResponse.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Lesson_${lessonId}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading DOCX:', error);
+      alert(error instanceof Error ? error.message : 'Failed to download DOCX file');
+    }
+  };
 
   // Format lesson text for better print layout
   const formatLessonForPrint = (text: string) => {
@@ -97,15 +133,33 @@ const LessonOutputViewer: React.FC<LessonOutputViewerProps> = ({ lessonText }) =
           Lesson Worksheet
         </h2>
         {lessonText && (
-          <button
-            onClick={handlePrint}
-            className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-green-700 transition-colors duration-200 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Download as PDF
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handlePrint}
+              className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-green-700 transition-colors duration-200 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Download as PDF
+            </button>
+            <button
+              onClick={handleDownloadDocx}
+              disabled={!lessonId}
+              title={!lessonId ? "Generate a lesson first" : "Download as Word document"}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 transition-colors duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Download DOCX
+            </button>
+          </div>
+        )}
+        {lessonText && !lessonId && (
+          <div className="mt-2 text-xs text-gray-500 italic">
+            DOCX available after lesson is saved
+          </div>
         )}
       </div>
       

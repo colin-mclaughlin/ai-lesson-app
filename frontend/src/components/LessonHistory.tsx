@@ -159,7 +159,10 @@ const LessonHistory: React.FC = () => {
             <span className="ml-3 text-gray-600">Loading lesson...</span>
           </div>
         ) : (
-          <LessonOutputViewer lessonText={selectedLesson.lesson_text} />
+          <LessonOutputViewer 
+            lessonText={selectedLesson.lesson_text} 
+            lessonId={selectedLesson.id}
+          />
         )}
       </div>
     );

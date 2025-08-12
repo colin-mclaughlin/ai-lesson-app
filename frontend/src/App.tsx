@@ -8,6 +8,7 @@ interface LessonData {
   lessonText: string;
   regenerated?: boolean;
   warnings?: string[];
+  lessonId?: number;
 }
 
 function App() {
@@ -82,7 +83,10 @@ function App() {
               )}
             </div>
             <div>
-              <LessonOutputViewer lessonText={lessonData.lessonText} />
+              <LessonOutputViewer 
+                lessonText={lessonData.lessonText} 
+                lessonId={lessonData.lessonId}
+              />
               {/* Content adjustment banner */}
               {(lessonData.regenerated || (lessonData.warnings && lessonData.warnings.length > 0)) && (
                 <div className="mt-4 bg-blue-50 border border-blue-200 rounded-md p-3">

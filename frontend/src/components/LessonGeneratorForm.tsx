@@ -11,6 +11,7 @@ interface LessonResponse {
   lessonText: string;
   regenerated?: boolean;
   warnings?: string[];
+  lessonId?: number;
 }
 
 interface LessonGeneratorFormProps {
@@ -57,6 +58,7 @@ const LessonGeneratorForm: React.FC<LessonGeneratorFormProps> = ({ onGenerate, o
       }
 
       const data = await response.json();
+      console.log('Generated lesson with ID:', data.lessonId); // Debug log
       onGenerate(data);
     } catch (error) {
       console.error('Error generating lesson:', error);

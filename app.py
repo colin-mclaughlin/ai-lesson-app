@@ -1,9 +1,14 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Union, List, Optional
 import logging
 import re
+from docx import Document
+from docx.shared import Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from io import BytesIO
 
 # Import our existing lesson generation functions
 from prompt_builder import build_grammar_lesson_prompt, build_multi_rule_grammar_lesson_prompt
@@ -38,6 +43,7 @@ class LessonResponse(BaseModel):
     success: bool = True
     regenerated: bool = False
     warnings: List[str] = []
+    lessonId: Optional[int] = None
 
 # Lesson history models
 class LessonSummary(BaseModel):
@@ -75,6 +81,142 @@ def validate_lesson(text: str, topic: str) -> tuple[bool, List[str]]:
     is_valid = len(warnings) == 0
     return is_valid, warnings
 
+def create_docx_from_lesson(lesson_text: str, grade: int, topics: List[str]) -> BytesIO:
+    """
+    Create a Word document from lesson text with proper styling.
+    """
+    doc = Document()
+    
+    # Set up document margins
+    sections = doc.sections
+    for section in sections:
+        section.top_margin = Inches(1)
+        section.bottom_margin = Inches(1)
+        section.left_margin = Inches(1)
+        section.right_margin = Inches(1)
+    
+    # Add header
+    header = doc.add_heading('Coding Cat Club', 0)
+    header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Add grade and topic info
+    topic_text = ', '.join(topics)
+    grade_topic = doc.add_paragraph(f'Grade {grade} — Topic: {topic_text}')
+    grade_topic.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Add Name and Date lines
+    name_date = doc.add_paragraph()
+    name_date.add_run('Name: ').bold = True
+    name_date.add_run('_' * 30)
+    name_date.add_run('    Date: ').bold = True
+    name_date.add_run('_' * 30)
+    
+    # Add title
+    title = doc.add_heading('Lesson Worksheet', level=1)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Process lesson text line by line
+    lines = lesson_text.split('\n')
+    i = 0
+    
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        if not line:
+            # Empty line - add paragraph break
+            doc.add_paragraph()
+            i += 1
+            continue
+        
+        # Check for section headers (bold text)
+        if line.startswith('**') and line.endswith('**'):
+            # Section header
+            header_text = line.replace('**', '')
+            doc.add_heading(header_text, level=2)
+            i += 1
+            continue
+        
+        # Check for numbered lists
+        numbered_match = re.match(r'^(\d+)\.\s*(.+)$', line)
+        if numbered_match:
+            # Start numbered list
+            list_items = []
+            while i < len(lines) and re.match(r'^\d+\.\s*(.+)$', lines[i].strip()):
+                match = re.match(r'^\d+\.\s*(.+)$', lines[i].strip())
+                if match:
+                    list_items.append(match.group(1))
+                i += 1
+            
+            # Add numbered list
+            for item in list_items:
+                p = doc.add_paragraph(item, style='List Number')
+                # Check if next line is an answer line
+                if i < len(lines) and lines[i].strip() == '':
+                    i += 1
+                    if i < len(lines) and lines[i].strip() == '':
+                        # Add answer line
+                        answer_p = doc.add_paragraph()
+                        answer_run = answer_p.add_run('_' * 50)
+                        answer_run.underline = True
+                        i += 1
+            continue
+        
+        # Check for bullet points
+        bullet_match = re.match(r'^[-•]\s*(.+)$', line)
+        if bullet_match:
+            # Start bullet list
+            list_items = []
+            while i < len(lines) and re.match(r'^[-•]\s*(.+)$', lines[i].strip()):
+                match = re.match(r'^[-•]\s*(.+)$', lines[i].strip())
+                if match:
+                    list_items.append(match.group(1))
+                i += 1
+            
+            # Add bullet list
+            for item in list_items:
+                doc.add_paragraph(item, style='List Bullet')
+            continue
+        
+        # Check for instructions
+        if line.startswith('Instructions:'):
+            p = doc.add_paragraph()
+            p.add_run('Instructions: ').bold = True
+            p.add_run(line.replace('Instructions:', '').strip()).italic = True
+            i += 1
+            continue
+        
+        # Regular paragraph with markdown processing
+        p = doc.add_paragraph()
+        
+        # Process bold text within the line
+        parts = re.split(r'(\*\*.*?\*\*)', line)
+        for part in parts:
+            if part.startswith('**') and part.endswith('**'):
+                # Bold text
+                run = p.add_run(part.replace('**', ''))
+                run.bold = True
+            else:
+                # Regular text
+                p.add_run(part)
+        
+        # Check if next line should be an answer line
+        if i + 1 < len(lines) and lines[i + 1].strip() == '':
+            i += 1
+            if i + 1 < len(lines) and lines[i + 1].strip() == '':
+                # Add answer line
+                answer_p = doc.add_paragraph()
+                answer_run = answer_p.add_run('_' * 50)
+                answer_run.underline = True
+                i += 1
+        
+        i += 1
+    
+    # Save to BytesIO
+    docx_buffer = BytesIO()
+    doc.save(docx_buffer)
+    docx_buffer.seek(0)
+    return docx_buffer
+
 @app.get("/")
 async def root():
     return {"message": "Coding Cat Lesson Generator API", "status": "running"}
@@ -82,6 +224,44 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "message": "API is running"}
+
+@app.get("/api/lessons/{lesson_id}/docx")
+async def download_lesson_docx(lesson_id: int):
+    """
+    Download a lesson as a Word document (.docx)
+    """
+    try:
+        logger.info(f"Generating DOCX for lesson ID: {lesson_id}")
+        
+        # Get lesson from database
+        lesson = db.get_lesson(lesson_id)
+        if not lesson:
+            raise HTTPException(status_code=404, detail=f"Lesson with ID {lesson_id} not found")
+        
+        # Create DOCX
+        docx_buffer = create_docx_from_lesson(
+            lesson['lesson_text'],
+            lesson['grade'],
+            lesson['topics']
+        )
+        
+        # Create filename
+        topic_text = '_'.join(lesson['topics']).replace(' ', '_')
+        filename = f"Lesson_Grade{lesson['grade']}_{topic_text}.docx"
+        
+        logger.info(f"DOCX generated successfully: {filename}")
+        
+        return StreamingResponse(
+            docx_buffer,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating DOCX for lesson {lesson_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate DOCX: {str(e)}")
 
 @app.post("/api/generate-lesson", response_model=LessonResponse)
 async def generate_lesson_endpoint(request: LessonRequest):
@@ -154,14 +334,17 @@ async def generate_lesson_endpoint(request: LessonRequest):
         try:
             lesson_id = db.save_lesson(topics, grade_level, lesson_text)
             logger.info(f"Lesson saved to database with ID: {lesson_id}")
+            print(f"DEBUG: Lesson saved with ID: {lesson_id}")  # Debug log
         except Exception as e:
             logger.warning(f"Failed to save lesson to database: {e}")
+            lesson_id = None  # Set to None if save fails
             # Don't fail the request if database save fails
         
         return LessonResponse(
             lessonText=lesson_text,
             regenerated=regenerated,
-            warnings=warnings
+            warnings=warnings,
+            lessonId=lesson_id
         )
         
     except HTTPException:
