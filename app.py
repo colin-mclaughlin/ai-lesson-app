@@ -107,6 +107,222 @@ def clean_lesson_text(text: str, subject: str, topic: str) -> str:
     
     return '\n'.join(final_cleaned_lines)
 
+
+def parse_lesson_sections(text: str) -> dict:
+    """
+    Parse lesson text into sections: explanation and activities.
+    Returns {"explanation": str, "activities": {1: str, 2: str, 3: str, 4: str}}
+    """
+    sections = {"explanation": "", "activities": {}}
+    
+    # Split text into lines
+    lines = text.split('\n')
+    current_section = "explanation"
+    current_content = []
+    
+    for line in lines:
+        # Check for Activity headers
+        activity_match = re.match(r'^Activity\s+(\d+)\s*$', line.strip(), re.IGNORECASE)
+        if activity_match:
+            # Save previous section
+            if current_section == "explanation":
+                sections["explanation"] = '\n'.join(current_content).strip()
+            else:
+                sections["activities"][int(current_section)] = '\n'.join(current_content).strip()
+            
+            # Start new activity section
+            current_section = activity_match.group(1)
+            current_content = []
+        else:
+            current_content.append(line)
+    
+    # Save the last section
+    if current_section == "explanation":
+        sections["explanation"] = '\n'.join(current_content).strip()
+    else:
+        sections["activities"][int(current_section)] = '\n'.join(current_content).strip()
+    
+    return sections
+
+
+def count_numbered_items(block: str) -> int:
+    """
+    Count numbered items in a text block using regex pattern.
+    """
+    if not block:
+        return 0
+    
+    # Find all lines that match the pattern: start with optional whitespace, then number, dot, space
+    matches = re.findall(r'^\s*\d+\.\s', block, re.MULTILINE)
+    return len(matches)
+
+
+def validate_counts(sections: dict, config: dict) -> dict:
+    """
+    Validate that each activity has the expected number of items.
+    Returns dict with per-activity actual vs expected counts and overall 'ok' status.
+    """
+    validation_result = {
+        "ok": True,
+        "activities": {},
+        "summary": {}
+    }
+    
+    expected_counts = {
+        1: config.get("section_a_questions", 6),
+        2: config.get("section_b_questions", 6),
+        3: config.get("section_c_questions", 6),
+        4: config.get("section_d_questions", 6)
+    }
+    
+    for activity_num in range(1, 5):
+        activity_content = sections["activities"].get(activity_num, "")
+        actual_count = count_numbered_items(activity_content)
+        expected_count = expected_counts[activity_num]
+        
+        validation_result["activities"][activity_num] = {
+            "actual": actual_count,
+            "expected": expected_count,
+            "match": actual_count == expected_count
+        }
+        
+        if actual_count != expected_count:
+            validation_result["ok"] = False
+    
+    # Add summary
+    validation_result["summary"] = {
+        "total_activities": len(sections["activities"]),
+        "matching_activities": sum(1 for act in validation_result["activities"].values() if act["match"]),
+        "total_expected": sum(expected_counts.values()),
+        "total_actual": sum(act["actual"] for act in validation_result["activities"].values())
+    }
+    
+    return validation_result
+
+
+def generate_targeted_activity_prompt(topic: str, activity_num: int, expected_count: int) -> str:
+    """
+    Generate a targeted prompt for regenerating a specific activity.
+    """
+    return f"""Regenerate ONLY Activity {activity_num} for topic "{topic}", exactly {expected_count} items, each on its own line starting '1.' to '{expected_count}.' No extra text.
+
+Example format:
+1. [First item]
+2. [Second item]
+3. [Third item]
+...
+{expected_count}. [Last item]
+
+Topic: {topic}
+Activity {activity_num}:"""
+
+
+def fix_activity_section(lesson_text: str, topic: str, activity_num: int, expected_count: int, max_attempts: int = 2) -> str:
+    """
+    Attempt to fix a specific activity section by regenerating it.
+    Returns the updated lesson text.
+    """
+    logger.info(f"Attempting to fix Activity {activity_num} (expected: {expected_count} items)")
+    
+    for attempt in range(max_attempts):
+        try:
+            # Generate targeted prompt
+            targeted_prompt = generate_targeted_activity_prompt(topic, activity_num, expected_count)
+            
+            # Generate new activity content
+            new_activity_content = generate_lesson(targeted_prompt)
+            
+            # Clean up the generated content (remove any extra text)
+            lines = new_activity_content.split('\n')
+            cleaned_lines = []
+            for line in lines:
+                if re.match(r'^\s*\d+\.\s', line.strip()):
+                    cleaned_lines.append(line)
+            
+            if len(cleaned_lines) == expected_count:
+                # Replace the activity section in the original text
+                sections = parse_lesson_sections(lesson_text)
+                sections["activities"][activity_num] = '\n'.join(cleaned_lines)
+                
+                # Reconstruct the lesson text
+                updated_text = sections["explanation"] + "\n\n"
+                for act_num in range(1, 5):
+                    if act_num in sections["activities"]:
+                        updated_text += f"Activity {act_num}\n{sections['activities'][act_num]}\n\n"
+                
+                logger.info(f"Successfully fixed Activity {activity_num} on attempt {attempt + 1}")
+                return updated_text.strip()
+            else:
+                logger.warning(f"Activity {activity_num} attempt {attempt + 1}: got {len(cleaned_lines)} items, expected {expected_count}")
+                
+        except Exception as e:
+            logger.error(f"Error fixing Activity {activity_num} attempt {attempt + 1}: {str(e)}")
+    
+    # If all attempts failed, try to synthesize the missing items
+    logger.warning(f"All attempts failed for Activity {activity_num}, synthesizing items")
+    return synthesize_missing_items(lesson_text, topic, activity_num, expected_count)
+
+
+def synthesize_missing_items(lesson_text: str, topic: str, activity_num: int, expected_count: int) -> str:
+    """
+    Synthesize missing items for an activity when regeneration fails.
+    """
+    sections = parse_lesson_sections(lesson_text)
+    current_content = sections["activities"].get(activity_num, "")
+    current_count = count_numbered_items(current_content)
+    
+    if current_count >= expected_count:
+        return lesson_text
+    
+    # Extract existing items
+    lines = current_content.split('\n')
+    existing_items = []
+    for line in lines:
+        if re.match(r'^\s*\d+\.\s', line.strip()):
+            existing_items.append(line.strip())
+    
+    # Generate additional items
+    missing_count = expected_count - current_count
+    additional_prompt = f"""Generate exactly {missing_count} more numbered items for Activity {activity_num} about "{topic}". 
+Each item should be on its own line starting with the next number ({current_count + 1}.) through ({expected_count}.).
+Make them relevant to the topic and consistent with the existing items.
+
+Existing items:
+{chr(10).join(existing_items[:3])}  # Show first 3 for context
+
+Generate {missing_count} more items:"""
+    
+    try:
+        additional_content = generate_lesson(additional_prompt)
+        additional_lines = additional_content.split('\n')
+        additional_items = []
+        
+        for line in additional_lines:
+            if re.match(r'^\s*\d+\.\s', line.strip()):
+                additional_items.append(line.strip())
+                if len(additional_items) >= missing_count:
+                    break
+        
+        # Combine existing and additional items
+        all_items = existing_items + additional_items[:missing_count]
+        
+        # Update the activity section
+        sections["activities"][activity_num] = '\n'.join(all_items)
+        
+        # Reconstruct the lesson text
+        updated_text = sections["explanation"] + "\n\n"
+        for act_num in range(1, 5):
+            if act_num in sections["activities"]:
+                updated_text += f"Activity {act_num}\n{sections['activities'][act_num]}\n\n"
+        
+        logger.info(f"Synthesized {len(additional_items[:missing_count])} items for Activity {activity_num}")
+        return updated_text.strip()
+        
+    except Exception as e:
+        logger.error(f"Error synthesizing items for Activity {activity_num}: {str(e)}")
+        return lesson_text
+
+
 app = FastAPI(title="Coding Cat Lesson Generator API", version="1.0.0")
 
 # Configure CORS
@@ -424,6 +640,45 @@ async def generate_lesson_endpoint(request: LessonRequest):
         
         # Clean the lesson text
         cleaned_lesson_text = clean_lesson_text(lesson_text, request.subject, topics[0])
+        
+        # Validate activity counts and fix if needed
+        sections = parse_lesson_sections(cleaned_lesson_text)
+        validation_result = validate_counts(sections, lesson_config)
+        
+        # Log initial validation results
+        logger.info(f"Initial validation: {validation_result['summary']}")
+        for act_num, act_data in validation_result['activities'].items():
+            if not act_data['match']:
+                logger.warning(f"Activity {act_num}: expected {act_data['expected']}, got {act_data['actual']}")
+        
+        # Fix mismatched activities
+        if not validation_result['ok']:
+            logger.info("Fixing mismatched activities...")
+            fixed_lesson_text = cleaned_lesson_text
+            
+            for act_num, act_data in validation_result['activities'].items():
+                if not act_data['match']:
+                    logger.info(f"Fixing Activity {act_num}: {act_data['actual']} -> {act_data['expected']} items")
+                    fixed_lesson_text = fix_activity_section(
+                        fixed_lesson_text, 
+                        topics[0], 
+                        act_num, 
+                        act_data['expected']
+                    )
+            
+            # Re-validate after fixes
+            fixed_sections = parse_lesson_sections(fixed_lesson_text)
+            final_validation = validate_counts(fixed_sections, lesson_config)
+            
+            # Log final validation results
+            logger.info(f"Final validation: {final_validation['summary']}")
+            for act_num, act_data in final_validation['activities'].items():
+                if not act_data['match']:
+                    logger.warning(f"Activity {act_num} still mismatched: expected {act_data['expected']}, got {act_data['actual']}")
+                else:
+                    logger.info(f"Activity {act_num} fixed: {act_data['actual']} items")
+            
+            cleaned_lesson_text = fixed_lesson_text
         
         # Save lesson to database (optional - you can remove this if you don't want to auto-save)
         try:
