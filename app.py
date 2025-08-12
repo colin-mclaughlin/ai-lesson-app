@@ -19,6 +19,85 @@ from database import LessonDatabase
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def clean_lesson_text(text: str, subject: str, topic: str) -> str:
+    """
+    Clean lesson text by removing markdown formatting, placeholder headings,
+    and adding a clean title.
+    """
+    if not text:
+        return text
+    
+    # Remove markdown formatting first
+    # Replace **bold** → bold
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    # Replace _italics_ → italics
+    text = re.sub(r'_(.*?)_', r'\1', text)
+    # Remove heading syntax (##, ###)
+    text = re.sub(r'^#{1,3}\s*', '', text, flags=re.MULTILINE)
+    
+    cleaned_lines = []
+    activity_counter = 0
+    rule_section_processed = False
+    
+    # Regex patterns (compiled for efficiency and case-insensitivity)
+    rule_heading_pattern = re.compile(r'^\s*Rule Heading\s*$', re.IGNORECASE)
+    rule_x_pattern = re.compile(r'^\s*Rule \d+:\s*.*$', re.IGNORECASE)
+    # This pattern now captures optional leading numbers for activity sections
+    activity_section_pattern = re.compile(r'^\s*(?:\d+\.\s*)?(Activity|Section) Section [A-Z]\s*$', re.IGNORECASE)
+    bullet_pattern = re.compile(r'^\s*[-•]\s*') # For removing leading bullets
+    
+    lines = text.split('\n')
+    
+    # Add clean title at the top
+    cleaned_lines.append(f"{subject} — {topic}")
+    cleaned_lines.append("") # Add a blank line after title
+    
+    for line in lines:
+        # 1. Handle "Rule Heading" and "Rule X:" replacement
+        if rule_heading_pattern.match(line) or rule_x_pattern.match(line):
+            if not rule_section_processed:
+                cleaned_lines.append(topic)
+                cleaned_lines.append("") # Blank line after topic
+                cleaned_lines.append("Explanation")
+                cleaned_lines.append("") # Blank line after explanation
+                rule_section_processed = True
+            continue # Skip the original rule line
+        
+        # 2. Handle Activity Section renaming and remove leading numbers
+        match_activity = activity_section_pattern.match(line)
+        if match_activity:
+            activity_counter += 1
+            cleaned_lines.append(f"Activity {activity_counter}")
+            cleaned_lines.append("") # Blank line after activity title
+            continue
+        
+        # 3. Remove leading "-" or "•" from list items
+        line = bullet_pattern.sub('', line)
+        
+        # Add the processed line
+        cleaned_lines.append(line)
+    
+    # 5. Ensure the cleaned text is returned without any extra blank lines caused by these removals.
+    # Trim extra blank lines (more than 2 consecutive empty lines -> 1 empty line)
+    final_cleaned_lines = []
+    consecutive_blanks = 0
+    for line in cleaned_lines:
+        if not line.strip():
+            consecutive_blanks += 1
+        else:
+            consecutive_blanks = 0
+        
+        if consecutive_blanks <= 1: # Allow at most one blank line
+            final_cleaned_lines.append(line)
+    
+    # Remove leading/trailing blank lines from the final list
+    while final_cleaned_lines and not final_cleaned_lines[0].strip():
+        final_cleaned_lines.pop(0)
+    while final_cleaned_lines and not final_cleaned_lines[-1].strip():
+        final_cleaned_lines.pop()
+    
+    return '\n'.join(final_cleaned_lines)
+
 app = FastAPI(title="Coding Cat Lesson Generator API", version="1.0.0")
 
 # Configure CORS
@@ -119,6 +198,10 @@ def create_docx_from_lesson(lesson_text: str, grade: int, topics: List[str]) -> 
     lines = lesson_text.split('\n')
     i = 0
     
+    # Skip the first line if it's the subject-topic title (already handled in header)
+    if lines and ' — ' in lines[0]:
+        i = 2  # Skip title and empty line
+    
     while i < len(lines):
         line = lines[i].strip()
         
@@ -128,11 +211,11 @@ def create_docx_from_lesson(lesson_text: str, grade: int, topics: List[str]) -> 
             i += 1
             continue
         
-        # Check for section headers (bold text)
-        if line.startswith('**') and line.endswith('**'):
+        # Check for section headers (previously bold text, now plain text)
+        # Look for lines that are likely section headers (all caps, short, or end with colon)
+        if (line.isupper() and len(line) < 50) or line.endswith(':') and len(line) < 100:
             # Section header
-            header_text = line.replace('**', '')
-            doc.add_heading(header_text, level=2)
+            doc.add_heading(line, level=2)
             i += 1
             continue
         
@@ -330,9 +413,12 @@ async def generate_lesson_endpoint(request: LessonRequest):
         
         logger.info("Lesson generated successfully")
         
+        # Clean the lesson text
+        cleaned_lesson_text = clean_lesson_text(lesson_text, request.subject, topics[0])
+        
         # Save lesson to database (optional - you can remove this if you don't want to auto-save)
         try:
-            lesson_id = db.save_lesson(topics, grade_level, lesson_text)
+            lesson_id = db.save_lesson(topics, grade_level, cleaned_lesson_text)
             logger.info(f"Lesson saved to database with ID: {lesson_id}")
             print(f"DEBUG: Lesson saved with ID: {lesson_id}")  # Debug log
         except Exception as e:
@@ -341,7 +427,7 @@ async def generate_lesson_endpoint(request: LessonRequest):
             # Don't fail the request if database save fails
         
         return LessonResponse(
-            lessonText=lesson_text,
+            lessonText=cleaned_lesson_text,
             regenerated=regenerated,
             warnings=warnings,
             lessonId=lesson_id
