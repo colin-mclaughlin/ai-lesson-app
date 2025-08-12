@@ -38,6 +38,7 @@ def clean_lesson_text(text: str, subject: str, topic: str) -> str:
     cleaned_lines = []
     activity_counter = 0
     rule_section_processed = False
+    title_added = False
     
     # Regex patterns (compiled for efficiency and case-insensitivity)
     rule_heading_pattern = re.compile(r'^\s*Rule Heading\s*$', re.IGNORECASE)
@@ -45,25 +46,33 @@ def clean_lesson_text(text: str, subject: str, topic: str) -> str:
     # This pattern now captures optional leading numbers for activity sections
     activity_section_pattern = re.compile(r'^\s*(?:\d+\.\s*)?(Activity|Section) Section [A-Z]\s*$', re.IGNORECASE)
     bullet_pattern = re.compile(r'^\s*[-•]\s*') # For removing leading bullets
+    topic_pattern = re.compile(r'^\s*' + re.escape(topic) + r'\s*$', re.IGNORECASE)
     
     lines = text.split('\n')
     
     # Add clean title at the top
     cleaned_lines.append(f"{subject} — {topic}")
     cleaned_lines.append("") # Add a blank line after title
+    title_added = True
     
     for line in lines:
         # 1. Handle "Rule Heading" and "Rule X:" replacement
         if rule_heading_pattern.match(line) or rule_x_pattern.match(line):
             if not rule_section_processed:
-                cleaned_lines.append(topic)
-                cleaned_lines.append("") # Blank line after topic
+                # Don't add topic again if it's already in the title
+                if not title_added:
+                    cleaned_lines.append(topic)
+                    cleaned_lines.append("") # Blank line after topic
                 cleaned_lines.append("Explanation")
                 cleaned_lines.append("") # Blank line after explanation
                 rule_section_processed = True
             continue # Skip the original rule line
         
-        # 2. Handle Activity Section renaming and remove leading numbers
+        # 2. Remove any standalone line that equals the topic (case-insensitive) if it appears again near the top
+        if topic_pattern.match(line) and title_added:
+            continue # Skip duplicate topic lines
+        
+        # 3. Handle Activity Section renaming and remove leading numbers
         match_activity = activity_section_pattern.match(line)
         if match_activity:
             activity_counter += 1
@@ -71,7 +80,7 @@ def clean_lesson_text(text: str, subject: str, topic: str) -> str:
             cleaned_lines.append("") # Blank line after activity title
             continue
         
-        # 3. Remove leading "-" or "•" from list items
+        # 4. Remove leading "-" or "•" from list items
         line = bullet_pattern.sub('', line)
         
         # Add the processed line
@@ -230,9 +239,9 @@ def create_docx_from_lesson(lesson_text: str, grade: int, topics: List[str]) -> 
                     list_items.append(match.group(1))
                 i += 1
             
-            # Add numbered list
-            for item in list_items:
-                p = doc.add_paragraph(item, style='List Number')
+            # Add numbered list with manual numbering (restarts at 1 for each block)
+            for idx, item in enumerate(list_items, 1):
+                p = doc.add_paragraph(f"{idx}. {item}")
                 # Check if next line is an answer line
                 if i < len(lines) and lines[i].strip() == '':
                     i += 1
