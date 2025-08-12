@@ -34,7 +34,10 @@ def build_grammar_lesson_prompt(rule_title, lesson_config=None):
         f"   - Include {section_c_count} creative tasks like matching sentences to pictures, rewriting text, or another imaginative grammar-based activity.\n\n"
         f"6. **Activity Section D**\n"
         f"   - Include {section_d_count} higher-order thinking tasks like explaining, matching, error analysis, or 'find the mistake' activities.\n\n"
-        f"Make the worksheet engaging, clear, and appropriate for Grade {grade_level}. Do not copy from any real worksheets or books. Generate all content originally, but keep the structure, length, and style similar to the Evan-Moor Grade {grade_level} Grammar & Punctuation worksheets."
+        f"Make the worksheet engaging, clear, and appropriate for Grade {grade_level}. Do not copy from any real worksheets or books. Generate all content originally, but keep the structure, length, and style similar to the Evan-Moor Grade {grade_level} Grammar & Punctuation worksheets.\n\n"
+        "IMPORTANT CONSTRAINTS:\n"
+        "Do NOT include any tasks that require pictures, drawings, diagrams, or image generation.\n"
+        f"All questions must be directly related to the provided topic: {rule_title}. Do not introduce unrelated subtopics."
     )
 
 
@@ -65,6 +68,9 @@ def build_multi_rule_grammar_lesson_prompt(rule_titles, lesson_config=None):
         f"5. Activity D: Higher-order thinking. Provide at least {section_d_count} items, mixing explain, match, error analysis, and 'find the mistake' tasks.\n"
         "For every activity, provide explicit, student-friendly instructions.\n"
         f"All content must be original, age-appropriate for Grade {grade_level}, and varied.\n\n"
+        "IMPORTANT CONSTRAINTS:\n"
+        "Do NOT include any tasks that require pictures, drawings, diagrams, or image generation.\n"
+        f"All questions must be directly related to the provided topics: {', '.join(rule_titles)}. Do not introduce unrelated subtopics.\n\n"
     )
     sections = []
     for idx, rule in enumerate(rule_titles, 1):

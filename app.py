@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Union, List, Optional
 import logging
+import re
 
 # Import our existing lesson generation functions
 from prompt_builder import build_grammar_lesson_prompt, build_multi_rule_grammar_lesson_prompt
@@ -35,6 +36,8 @@ class LessonRequest(BaseModel):
 class LessonResponse(BaseModel):
     lessonText: str
     success: bool = True
+    regenerated: bool = False
+    warnings: List[str] = []
 
 # Lesson history models
 class LessonSummary(BaseModel):
@@ -50,6 +53,27 @@ class LessonsListResponse(BaseModel):
 
 # Initialize database
 db = LessonDatabase()
+
+def validate_lesson(text: str, topic: str) -> tuple[bool, List[str]]:
+    """
+    Validate lesson content for banned terms and topic adherence.
+    Returns (is_valid, warnings_list)
+    """
+    warnings = []
+    
+    # Check for banned terms (pictures, drawings, diagrams, images)
+    banned_pattern = r"\b(picture|draw|diagram|image|illustration)\b"
+    banned_matches = re.findall(banned_pattern, text, flags=re.IGNORECASE)
+    if banned_matches:
+        warnings.append(f"Found banned terms: {', '.join(set(banned_matches))}")
+    
+    # Check topic adherence (topic should appear at least 2 times)
+    topic_matches = len(re.findall(re.escape(topic), text, flags=re.IGNORECASE))
+    if topic_matches < 2:
+        warnings.append(f"Topic '{topic}' only appears {topic_matches} times")
+    
+    is_valid = len(warnings) == 0
+    return is_valid, warnings
 
 @app.get("/")
 async def root():
@@ -70,9 +94,9 @@ async def generate_lesson_endpoint(request: LessonRequest):
         # Convert grade to int if it's a string
         grade_level = int(request.grade) if isinstance(request.grade, str) else request.grade
         
-        # Validate grade level
-        if grade_level < 1 or grade_level > 8:
-            raise HTTPException(status_code=400, detail="Grade level must be between 1 and 8")
+        # Validate grade level (expanded to 1-12)
+        if grade_level < 1 or grade_level > 12:
+            raise HTTPException(status_code=422, detail="Grade level must be between 1 and 12")
         
         # Validate questions per section
         if request.questions_per_section < 1 or request.questions_per_section > 20:
@@ -105,6 +129,25 @@ async def generate_lesson_endpoint(request: LessonRequest):
         # Generate the lesson using OpenAI
         lesson_text = generate_lesson(prompt)
         
+        # Validate the generated lesson
+        is_valid, warnings = validate_lesson(lesson_text, topics[0])
+        
+        # If invalid, regenerate once with stronger constraints
+        regenerated = False
+        if not is_valid:
+            logger.warning(f"Lesson validation failed: {warnings}. Regenerating with stronger constraints.")
+            
+            # Add stronger system steer to the prompt
+            stronger_prompt = prompt + f"\n\nYour last output violated constraints. Strictly follow: no pictures; keep strictly on-topic: {topics[0]}."
+            
+            # Regenerate
+            lesson_text = generate_lesson(stronger_prompt)
+            regenerated = True
+            
+            # Validate again
+            is_valid, new_warnings = validate_lesson(lesson_text, topics[0])
+            warnings = new_warnings  # Use the new warnings from regeneration
+        
         logger.info("Lesson generated successfully")
         
         # Save lesson to database (optional - you can remove this if you don't want to auto-save)
@@ -115,7 +158,11 @@ async def generate_lesson_endpoint(request: LessonRequest):
             logger.warning(f"Failed to save lesson to database: {e}")
             # Don't fail the request if database save fails
         
-        return LessonResponse(lessonText=lesson_text)
+        return LessonResponse(
+            lessonText=lesson_text,
+            regenerated=regenerated,
+            warnings=warnings
+        )
         
     except HTTPException:
         # Re-raise HTTP exceptions

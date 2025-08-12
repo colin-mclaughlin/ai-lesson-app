@@ -7,8 +7,14 @@ interface FormData {
   questionsPerSection: number;
 }
 
+interface LessonResponse {
+  lessonText: string;
+  regenerated?: boolean;
+  warnings?: string[];
+}
+
 interface LessonGeneratorFormProps {
-  onGenerate: (lessonText: string) => void;
+  onGenerate: (data: LessonResponse) => void;
   onError: (error: string) => void;
 }
 
@@ -51,7 +57,7 @@ const LessonGeneratorForm: React.FC<LessonGeneratorFormProps> = ({ onGenerate, o
       }
 
       const data = await response.json();
-      onGenerate(data.lessonText);
+      onGenerate(data);
     } catch (error) {
       console.error('Error generating lesson:', error);
       onError(error instanceof Error ? error.message : 'An unexpected error occurred');
@@ -81,11 +87,18 @@ const LessonGeneratorForm: React.FC<LessonGeneratorFormProps> = ({ onGenerate, o
             onChange={(e) => handleInputChange('grade', e.target.value)}
             className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
+            <option value="1">Grade 1</option>
             <option value="2">Grade 2</option>
             <option value="3">Grade 3</option>
             <option value="4">Grade 4</option>
             <option value="5">Grade 5</option>
             <option value="6">Grade 6</option>
+            <option value="7">Grade 7</option>
+            <option value="8">Grade 8</option>
+            <option value="9">Grade 9</option>
+            <option value="10">Grade 10</option>
+            <option value="11">Grade 11</option>
+            <option value="12">Grade 12</option>
           </select>
         </div>
 
