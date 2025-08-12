@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import TopicSelector from './TopicSelector';
 
 interface FormData {
   grade: string;
@@ -31,7 +32,9 @@ const LessonGeneratorForm: React.FC<LessonGeneratorFormProps> = ({ onGenerate, o
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.topic.trim()) {
+    const topicString = String(formData.topic || '').trim();
+    
+    if (!topicString) {
       onError('Please enter a topic');
       return;
     }
@@ -47,7 +50,7 @@ const LessonGeneratorForm: React.FC<LessonGeneratorFormProps> = ({ onGenerate, o
         body: JSON.stringify({
           grade: formData.grade,
           subject: formData.subject,
-          topic: formData.topic,
+          topic: topicString,
           questions_per_section: formData.questionsPerSection,
         }),
       });
@@ -62,7 +65,17 @@ const LessonGeneratorForm: React.FC<LessonGeneratorFormProps> = ({ onGenerate, o
       onGenerate(data);
     } catch (error) {
       console.error('Error generating lesson:', error);
-      onError(error instanceof Error ? error.message : 'An unexpected error occurred');
+      let errorMessage = 'An unexpected error occurred';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        // Handle axios-like error objects
+        const errorObj = error as any;
+        errorMessage = errorObj.response?.data?.detail || errorObj.message || errorObj.toString();
+      }
+      
+      onError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -122,13 +135,11 @@ const LessonGeneratorForm: React.FC<LessonGeneratorFormProps> = ({ onGenerate, o
           <label htmlFor="topic" className="block text-sm font-medium text-gray-700 mb-2">
             Topic
           </label>
-          <input
-            type="text"
-            id="topic"
+          <TopicSelector
+            grade={formData.grade ? parseInt(formData.grade) : null}
             value={formData.topic}
-            onChange={(e) => handleInputChange('topic', e.target.value)}
-            placeholder="e.g. Nouns"
-            className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            onChange={(value) => handleInputChange('topic', value)}
+            disabled={isLoading}
           />
         </div>
 
